@@ -3,3 +3,4 @@ botd.gv
 botd.gv.png
 venv
 .idea
+__pycache__
