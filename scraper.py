@@ -3,6 +3,9 @@ from typing import Dict, Set
 
 
 class BotdData:
+    DEFAULT_CONNECTION = -5
+    STEP = 1
+
     mapping: Dict[str, int] = {}
     users: Set[str] = set()
 
@@ -12,21 +15,46 @@ class BotdData:
     def get_users(self) -> Set[str]:
         return self.users
 
-    def get_max_affinity(self) -> int:
+    def get_max_connection(self) -> int:
         return sorted(self.mapping.values(), reverse=True)[0]
 
-    def add(self, botd_author: str, song_sender: str) -> None:
+    def add_connection(self, botd_author: str, song_sender: str) -> None:
         self.users.add(botd_author)
         self.users.add(song_sender)
-        key = botd_author + '|' + song_sender if botd_author > song_sender else song_sender + '|' + botd_author
+
+        key = self.calculate_key(botd_author, song_sender)
         if key in self.mapping:
-            self.mapping[key] = self.mapping[key] + 1
+            if self.mapping[key] == self.DEFAULT_CONNECTION:
+                self.mapping[key] = self.STEP
+            else:
+                self.mapping[key] = self.mapping[key] + self.STEP
         else:
-            self.mapping[key] = 1
+            self.mapping[key] = self.STEP
+
+    def add_fake_connection(self, user1: str, user2: str) -> None:
+        if user1 == user2:
+            return
+        self.users.add(user1)
+        self.users.add(user2)
+        self.mapping[self.calculate_key(user1, user2)] = self.DEFAULT_CONNECTION
+
+    @staticmethod
+    def calculate_key(user1: str, user2: str) -> str:
+        return user1 + '|' + user2 if user1 > user2 else user2 + '|' + user1
 
 
-def scrape(path_to_file: str) -> BotdData:
+def scrape(path_to_file: str, apply_fake_connections: bool) -> BotdData:
     data = BotdData()
+    if apply_fake_connections:
+        with open(path_to_file, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            users = set()
+            for row in reader:
+                users.add(row['user'])
+            for user1 in users:
+                for user2 in users:
+                    data.add_fake_connection(user1, user2)
+
     with open(path_to_file, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
         current_botd_author = ''
@@ -37,6 +65,6 @@ def scrape(path_to_file: str) -> BotdData:
                 already_added = set()
             elif current_botd_author != row['user']:
                 if row['user'] not in already_added:
-                    data.add(current_botd_author, row['user'])
+                    data.add_connection(current_botd_author, row['user'])
                     already_added.add(row['user'])
     return data
